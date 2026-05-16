@@ -103,11 +103,13 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponseDTO login(LoginRequestDTO request) {
-        Authentication authentication = authenticationManager.authenticate(
+        authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
-        User user = (User) authentication.getPrincipal();
+        // завантажуємо User entity окремо
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new BadRequestException("Користувача не знайдено"));
 
         if (!user.isEnabled()) throw new BadRequestException("Підтвердіть ваш email");
         if (user.isBlocked()) throw new BadRequestException("Акаунт заблоковано адміністратором");
