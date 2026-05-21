@@ -41,6 +41,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/interviewers").permitAll()
+                        // ✦ callback від LiqPay — без JWT, але з обов'язковою перевіркою підпису
+                        .requestMatchers("/api/payment/liqpay/callback").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
@@ -57,9 +59,7 @@ public class SecurityConfig {
         // дозволені origin-и фронтенда (Vite за замовчуванням 5173)
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "http://localhost:5174",
-                "http://localhost:3000",
-                "http://127.0.0.1:5173"
+                "http://localhost:3000"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

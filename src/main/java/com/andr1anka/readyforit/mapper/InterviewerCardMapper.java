@@ -26,7 +26,6 @@ public class InterviewerCardMapper {
                .lastName(informationAboutLesson.getInterviewer().getUser().getLastName())
                .photo(informationAboutLesson.getInterviewer().getUser().getPicture())
                .rank(informationAboutLesson.getInterviewer().getUser().getRank())
-               .isVerified(informationAboutLesson.getInterviewer().isVerificated())
                .tags(tags)
                .title(informationAboutLesson.getTitle())
                .shortDescription(informationAboutLesson.getShortDescription())

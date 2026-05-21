@@ -57,6 +57,18 @@ public class User {
     @Column (name = "rank")
     private Double rank;
 
+    @Column(name = "is_verificated")
+    private boolean isVerificated;
+
+    @Column(name = "verification_status")
+    @Enumerated(EnumType.STRING)
+    private VerificationStatus verificationStatus = VerificationStatus.NONE;
+
+    @Column(name = "interviewer_request_status")
+    @Enumerated(EnumType.STRING)
+    private InterviewerRequestStatus interviewerRequestStatus = InterviewerRequestStatus.NONE;
+
+
     @Column(name = "balance")
     private BigDecimal balance;
 

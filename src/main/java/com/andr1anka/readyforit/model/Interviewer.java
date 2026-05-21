@@ -20,8 +20,8 @@ public class Interviewer {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "is_verificated")
-    private boolean isVerificated;
+//    @Column(name = "is_verificated")
+//    private boolean isVerificated;
 
     @NotNull
     @Column(name = "planned_session_duration_minutes", nullable = false)
