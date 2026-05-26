@@ -68,12 +68,19 @@ public class ScheduleServiceImpl implements ScheduleService {
                 .build();
     }
 
-    // актуальний = активний (BOOKED) і час ще не минув
+    // актуальний = активний (BOOKED) і заняття ще не закінчилось.
+    // Раніше перевірявся тільки час початку, тому заняття зникало в архів одразу після старту.
     private boolean isActual(Lesson l, LocalDateTime now) {
         if (l.getStatus() == LessonStatus.CANCELLED) return false;
         if (l.getStatus() == LessonStatus.COMPLETED) return false;
-        LocalDateTime t = l.getTimeOfLesson();
-        return t != null && t.isAfter(now);
+
+        LocalDateTime start = l.getTimeOfLesson();
+        if (start == null) return false;
+
+        int durationMinutes = l.getDurationMinutes() == null ? 60 : l.getDurationMinutes();
+        LocalDateTime end = start.plusMinutes(durationMinutes);
+
+        return now.isBefore(end) || now.isEqual(end);
     }
 
     private ScheduleItemDTO toItem(Lesson l, User currentUser) {
@@ -96,10 +103,16 @@ public class ScheduleServiceImpl implements ScheduleService {
             myComment = existing.get().getComment();
         }
 
-        // можна залишити відгук, якщо урок в архіві (минув/завершений), не скасований і ще не залишено
+        // Публічний відгук може залишити і студент, і інтерв'юер.
         boolean canReview = isArchived
                 && l.getStatus() != LessonStatus.CANCELLED
                 && existing.isEmpty();
+
+        // Приватний фідбек по заняттю може залишити тільки інтерв'юер.
+        boolean canLeaveInterviewerFeedback = isArchived
+                && iAmInterviewer
+                && l.getStatus() != LessonStatus.CANCELLED
+                && (l.getReviewFromInterviewer() == null || l.getReviewFromInterviewer().isBlank());
 
         return ScheduleItemDTO.builder()
                 .lessonId(l.getId())
@@ -110,17 +123,36 @@ public class ScheduleServiceImpl implements ScheduleService {
                 .role(iAmInterviewer ? "INTERVIEWER" : "STUDENT")
                 .date(slot == null ? null : slot.getDate())
                 .startTime(slot == null ? null : slot.getStartTime())
-                .endTime(slot == null ? null : slot.getEndTime())
+                .endTime(resolveEndTime(l, slot))
                 .timeOfLesson(l.getTimeOfLesson())
-                .durationMinutes(l.getDurationMinutes())
+                .durationMinutes(resolveDurationMinutes(l))
                 .price(l.getPrice())
                 .status(l.getStatus())
                 .link(l.getLink())
                 .reviewFromInterviewer(l.getReviewFromInterviewer())
+                .canLeaveInterviewerFeedback(canLeaveInterviewerFeedback)
                 .myRating(myRating)
                 .myReviewComment(myComment)
                 .canReview(canReview)
                 .build();
+    }
+
+    private int resolveDurationMinutes(Lesson l) {
+        if (l.getDurationMinutes() != null && l.getDurationMinutes() > 0) {
+            return l.getDurationMinutes();
+        }
+        TimeSlots slot = l.getTime();
+        if (slot != null && slot.getStartTime() != null && slot.getEndTime() != null) {
+            return (int) java.time.Duration.between(slot.getStartTime(), slot.getEndTime()).toMinutes();
+        }
+        return 60;
+    }
+
+    private java.time.LocalTime resolveEndTime(Lesson l, TimeSlots slot) {
+        if (l.getTimeOfLesson() != null) {
+            return l.getTimeOfLesson().plusMinutes(resolveDurationMinutes(l)).toLocalTime();
+        }
+        return slot == null ? null : slot.getEndTime();
     }
 
     private User getUser(String email) {

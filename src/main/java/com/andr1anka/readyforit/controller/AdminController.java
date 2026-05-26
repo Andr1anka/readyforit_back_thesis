@@ -7,7 +7,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.andr1anka.readyforit.model.InterviewerRequest;
+import com.andr1anka.readyforit.model.VerificationRequest;
 import com.andr1anka.readyforit.repository.InterviewerRequestRepository;
+import com.andr1anka.readyforit.repository.VerificationRequestRepository;
 import com.andr1anka.readyforit.service.FileStorageService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -25,6 +27,7 @@ public class AdminController {
     private final AdminService adminService;
     private final FileStorageService fileStorageService;
     private final InterviewerRequestRepository interviewerRequestRepository;
+    private final VerificationRequestRepository verificationRequestRepository;
 
     // --- Скарги ---
     @GetMapping("/complaints")
@@ -93,6 +96,7 @@ public class AdminController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
                 .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .contentType(mediaType)
                 .body(bytes);
     }
@@ -163,5 +167,68 @@ public class AdminController {
             @PathVariable Long userId,
             @RequestParam boolean approve) {
         return ResponseEntity.ok(adminService.decideVerification(userId, approve));
+    }
+
+
+    @GetMapping("/verifications/{requestId}/profile-photo")
+    public ResponseEntity<byte[]> openVerificationProfilePhoto(@PathVariable Long requestId) {
+        VerificationRequest request = verificationRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Запит верифікації не знайдено"));
+
+        if (request.getUser() == null
+                || request.getUser().getPicture() == null
+                || request.getUser().getPicture().isBlank()) {
+            throw new RuntimeException("Фото профілю не знайдено");
+        }
+
+        byte[] bytes = fileStorageService.getRawBytes(
+                fileStorageService.getAvatarsBucket(),
+                request.getUser().getPicture()
+        );
+
+        MediaType mediaType = detectMediaType(bytes, request.getUser().getPicture());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .contentType(mediaType)
+                .body(bytes);
+    }
+
+    @GetMapping("/verifications/{requestId}/document")
+    public ResponseEntity<byte[]> openVerificationDocument(@PathVariable Long requestId) {
+        VerificationRequest request = verificationRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Запит верифікації не знайдено"));
+
+        return openKycFile(request.getDocumentObjectKey());
+    }
+
+    @GetMapping("/verifications/{requestId}/selfie")
+    public ResponseEntity<byte[]> openVerificationSelfie(@PathVariable Long requestId) {
+        VerificationRequest request = verificationRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Запит верифікації не знайдено"));
+
+        return openKycFile(request.getSelfieObjectKey());
+    }
+
+    private ResponseEntity<byte[]> openKycFile(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new RuntimeException("Файл верифікації не знайдено");
+        }
+
+        byte[] bytes = fileStorageService.getDecryptedBytes(
+                fileStorageService.getKycBucket(),
+                objectKey
+        );
+
+        MediaType mediaType = detectMediaType(bytes, objectKey);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .contentType(mediaType)
+                .body(bytes);
     }
 }

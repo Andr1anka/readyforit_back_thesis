@@ -22,6 +22,7 @@ public class AdminServiceImpl implements AdminService {
     private final ComplaintRepository complaintRepository;
     private final InterviewerRequestRepository requestRepository;
     private final InterviewerRepository interviewerRepository;
+    private final VerificationRequestRepository verificationRequestRepository;
 
     // ----------------------------------------------------------- СКАРГИ
     @Override
@@ -116,7 +117,9 @@ public class AdminServiceImpl implements AdminService {
     @Transactional(readOnly = true)
     public List<AdminUserDTO> getVerificationQueue() {
         return userRepository.findAllByVerificationStatus(VerificationStatus.ESCALATED)
-                .stream().map(this::toUserDto).toList();
+                .stream()
+                .map(this::toVerificationUserDto)
+                .toList();
     }
 
     @Override
@@ -156,6 +159,30 @@ public class AdminServiceImpl implements AdminService {
                 .verificationStatus(u.getVerificationStatus())
                 .rank(u.getRank())
                 .build();
+    }
+
+
+    private AdminUserDTO toVerificationUserDto(User u) {
+        VerificationRequest request = verificationRequestRepository
+                .findTopByUserOrderByCreatedAtDesc(u)
+                .orElse(null);
+
+        AdminUserDTO.AdminUserDTOBuilder builder = toUserDto(u).toBuilder();
+
+        if (request != null) {
+            builder
+                    .verificationRequestId(request.getId())
+                    .profilePhotoUrl("/admin/verifications/" + request.getId() + "/profile-photo")
+                    .documentUrl("/admin/verifications/" + request.getId() + "/document")
+                    .selfieUrl("/admin/verifications/" + request.getId() + "/selfie")
+                    .nameMatch(request.getNameMatch())
+                    .faceSimilarity(request.getFaceSimilarity())
+                    .faceMatch(request.getFaceMatch())
+                    .extractedTextPreview(request.getExtractedTextPreview())
+                    .verificationCreatedAt(request.getCreatedAt());
+        }
+
+        return builder.build();
     }
 
     private AdminRequestDTO toRequestDto(InterviewerRequest r) {

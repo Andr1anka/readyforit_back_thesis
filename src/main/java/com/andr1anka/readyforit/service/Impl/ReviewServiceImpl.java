@@ -32,17 +32,9 @@ public class ReviewServiceImpl implements ReviewService {
         Lesson lesson = lessonRepository.findById(request.getLessonId())
                 .orElseThrow(() -> new BadRequestException("Урок не знайдено"));
 
-        Role roleInLesson = participantRole(lesson, me);   // кидає, якщо не учасник
+        Role roleInLesson = participantRole(lesson, me);
+        ensureLessonCanBeRated(lesson);
 
-        // відгук лише після того, як урок відбувся (час минув) і не скасований
-        if (lesson.getStatus() == LessonStatus.CANCELLED) {
-            throw new BadRequestException("Урок скасовано — відгук недоступний");
-        }
-        if (lesson.getTimeOfLesson() == null || lesson.getTimeOfLesson().isAfter(LocalDateTime.now())) {
-            throw new BadRequestException("Відгук можна залишити лише після проведення заняття");
-        }
-
-        // один відгук на урок від користувача
         if (reviewRepository.findByLessonIdAndReviewerId(lesson.getId(), me.getId()).isPresent()) {
             throw new BadRequestException("Ви вже залишили відгук до цього заняття");
         }
@@ -60,36 +52,59 @@ public class ReviewServiceImpl implements ReviewService {
                 .reviewType(type)
                 .createdAt(LocalDateTime.now())
                 .build();
+
         reviewRepository.save(review);
-
-        // якщо це рецензія ІНТЕРВ'ЮЕРА — урок вважається проведеним:
-        // перераховуємо кошти інтерв'юеру (escrow -> баланс) і завершуємо урок
-        if (iAmInterviewer) {
-            lesson.setReviewFromInterviewer(request.getComment());
-            payoutInterviewer(lesson);
-        }
-
-        // оновлюємо середній рейтинг адресата
         recalcRank(counterpartUser(lesson, me));
 
         return toReviewView(review, me);
     }
 
+    // ------------------------------------------------------ ФІДБЕК ІНТЕРВ'ЮЕРА
+    @Override
+    @Transactional
+    public ScheduleItemDTO submitInterviewerFeedback(String email, InterviewerFeedbackRequestDTO request) {
+        User me = getUser(email);
+        Lesson lesson = lessonRepository.findById(request.getLessonId())
+                .orElseThrow(() -> new BadRequestException("Урок не знайдено"));
+
+        Role roleInLesson = participantRole(lesson, me);
+        if (roleInLesson != Role.INTERVIEWER) {
+            throw new BadRequestException("Фідбек по заняттю може залишити лише інтерв'юер");
+        }
+
+        ensureLessonFinished(lesson);
+        if (lesson.getStatus() == LessonStatus.CANCELLED) {
+            throw new BadRequestException("Урок скасовано — фідбек недоступний");
+        }
+
+        String feedback = request.getFeedback() == null ? "" : request.getFeedback().trim();
+        if (feedback.isBlank()) {
+            throw new BadRequestException("Фідбек не може бути порожнім");
+        }
+
+        lesson.setReviewFromInterviewer(feedback);
+        payoutInterviewer(lesson);
+        lessonRepository.save(lesson);
+
+        return toScheduleItem(lesson, me);
+    }
+
     private void payoutInterviewer(Lesson lesson) {
         if (lesson.getStatus() == LessonStatus.COMPLETED) {
-            return; // вже виплачено
+            return;
         }
         if (lesson.getStatus() == LessonStatus.CANCELLED) {
             return;
         }
+
         User interviewerUser = lesson.getInterviewer() == null ? null : lesson.getInterviewer().getUser();
         if (interviewerUser != null && lesson.getPrice() != null) {
             BigDecimal bal = interviewerUser.getBalance() == null ? BigDecimal.ZERO : interviewerUser.getBalance();
             interviewerUser.setBalance(bal.add(BigDecimal.valueOf(lesson.getPrice())));
             userRepository.save(interviewerUser);
         }
+
         lesson.setStatus(LessonStatus.COMPLETED);
-        lessonRepository.save(lesson);
         log.info("Lesson #{} completed, interviewer paid {}", lesson.getId(), lesson.getPrice());
     }
 
@@ -117,7 +132,7 @@ public class ReviewServiceImpl implements ReviewService {
         Lesson lesson = lessonRepository.findById(request.getLessonId())
                 .orElseThrow(() -> new BadRequestException("Урок не знайдено"));
 
-        participantRole(lesson, me); // перевірка участі
+        participantRole(lesson, me);
         User accused = counterpartUser(lesson, me);
         if (accused == null) {
             throw new BadRequestException("Неможливо визначити іншу сторону уроку");
@@ -144,6 +159,27 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     // ---------------------------------------------------------------- ДОПОМІЖНІ
+    private void ensureLessonCanBeRated(Lesson lesson) {
+        if (lesson.getStatus() == LessonStatus.CANCELLED) {
+            throw new BadRequestException("Урок скасовано — відгук недоступний");
+        }
+        ensureLessonFinished(lesson);
+    }
+
+    private void ensureLessonFinished(Lesson lesson) {
+        LocalDateTime start = lesson.getTimeOfLesson();
+        if (start == null) {
+            throw new BadRequestException("Неможливо визначити час заняття");
+        }
+
+        int durationMinutes = lesson.getDurationMinutes() == null ? 60 : lesson.getDurationMinutes();
+        LocalDateTime end = start.plusMinutes(durationMinutes);
+
+        if (end.isAfter(LocalDateTime.now())) {
+            throw new BadRequestException("Дія доступна лише після завершення заняття");
+        }
+    }
+
     private Role participantRole(Lesson lesson, User me) {
         boolean iAmInterviewer = lesson.getInterviewer() != null
                 && lesson.getInterviewer().getUser() != null
@@ -164,7 +200,6 @@ public class ReviewServiceImpl implements ReviewService {
 
     private void recalcRank(User target) {
         if (target == null) return;
-        // середній рейтинг по всіх отриманих відгуках
         List<Review> received = reviewRepository.findReceivedByUser(target.getId());
         if (received.isEmpty()) return;
         double avg = received.stream().mapToInt(Review::getRating).average().orElse(0);
@@ -172,26 +207,68 @@ public class ReviewServiceImpl implements ReviewService {
         userRepository.save(target);
     }
 
+    private String avatarUrl(User user) {
+        return user != null && user.getPicture() != null && !user.getPicture().isBlank()
+                ? "/api/user/me/avatar?u=" + user.getId()
+                : null;
+    }
+
     private ReviewViewDTO toReviewView(Review r, User me) {
         Lesson lesson = r.getLesson();
-        // інша сторона відносно "me"
         User counterpart;
         if (r.getReviewer() != null && r.getReviewer().getId().equals(me.getId())) {
-            counterpart = counterpartUser(lesson, me);          // я автор -> про кого
+            counterpart = counterpartUser(lesson, me);
         } else {
-            counterpart = r.getReviewer();                       // отриманий -> від кого
+            counterpart = r.getReviewer();
         }
+
         return ReviewViewDTO.builder()
                 .id(r.getId())
                 .lessonId(lesson == null ? null : lesson.getId())
                 .lessonTitle(lesson == null || lesson.getLessonType() == null ? "Заняття" : lesson.getLessonType().getTitle())
                 .counterpartFirstName(counterpart == null ? null : counterpart.getFirstName())
                 .counterpartLastName(counterpart == null ? null : counterpart.getLastName())
-                .counterpartPhoto(counterpart == null ? null : counterpart.getPicture())
+                .counterpartPhoto(avatarUrl(counterpart))
                 .rating(r.getRating())
                 .comment(r.getComment())
                 .reviewType(r.getReviewType())
                 .createdAt(r.getCreatedAt())
+                .build();
+    }
+
+    private ScheduleItemDTO toScheduleItem(Lesson l, User currentUser) {
+        boolean iAmInterviewer = l.getInterviewer() != null
+                && l.getInterviewer().getUser() != null
+                && l.getInterviewer().getUser().getId().equals(currentUser.getId());
+
+        User counterpart = iAmInterviewer ? l.getUser()
+                : (l.getInterviewer() == null ? null : l.getInterviewer().getUser());
+
+        TimeSlots slot = l.getTime();
+        var existing = reviewRepository.findByLessonIdAndReviewerId(l.getId(), currentUser.getId());
+
+        return ScheduleItemDTO.builder()
+                .lessonId(l.getId())
+                .title(l.getLessonType() == null ? "Заняття" : l.getLessonType().getTitle())
+                .counterpartFirstName(counterpart == null ? null : counterpart.getFirstName())
+                .counterpartLastName(counterpart == null ? null : counterpart.getLastName())
+                .counterpartPhoto(avatarUrl(counterpart))
+                .role(iAmInterviewer ? "INTERVIEWER" : "STUDENT")
+                .date(slot == null ? null : slot.getDate())
+                .startTime(slot == null ? null : slot.getStartTime())
+                .endTime(slot == null ? null : slot.getEndTime())
+                .timeOfLesson(l.getTimeOfLesson())
+                .durationMinutes(l.getDurationMinutes())
+                .price(l.getPrice())
+                .status(l.getStatus())
+                .link(l.getLink())
+                .reviewFromInterviewer(l.getReviewFromInterviewer())
+                .canLeaveInterviewerFeedback(iAmInterviewer
+                        && l.getStatus() != LessonStatus.CANCELLED
+                        && (l.getReviewFromInterviewer() == null || l.getReviewFromInterviewer().isBlank()))
+                .myRating(existing.map(Review::getRating).orElse(null))
+                .myReviewComment(existing.map(Review::getComment).orElse(null))
+                .canReview(l.getStatus() != LessonStatus.CANCELLED && existing.isEmpty())
                 .build();
     }
 

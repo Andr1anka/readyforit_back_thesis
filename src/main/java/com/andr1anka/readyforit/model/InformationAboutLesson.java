@@ -40,10 +40,6 @@ public class InformationAboutLesson {
     @Column(name = "price")
     private int price;
 
-    @NotNull
-    @Column(name = "duration_multiplier")
-    private Double durationMultiplier;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name= "interviewer_id")
     @EqualsAndHashCode.Exclude

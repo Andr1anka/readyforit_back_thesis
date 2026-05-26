@@ -5,13 +5,20 @@ import com.andr1anka.readyforit.dto.*;
 import java.util.List;
 
 /**
- * Відгуки та скарги (Feature 6). Відгук/скаргу можна подати лише за наявності
- * спільного уроку. Рецензія інтерв'юера завершує урок і перераховує кошти.
+ * Відгуки, фідбек інтерв'юера та скарги.
+ *
+ * Важливо:
+ * - Review — це публічний відгук/оцінка про іншу сторону уроку. Його може залишити і студент, і інтерв'юер.
+ * - Interviewer feedback — це приватна рецензія інтерв'юера по заняттю для студента: що покращити,
+ *   де були помилки тощо. Це НЕ впливає на рейтинг і НЕ показується як звичайний відгук.
  */
 public interface ReviewService {
 
-    /** Залишити відгук про іншу сторону уроку. */
+    /** Залишити публічний відгук про іншу сторону уроку. */
     ReviewViewDTO submitReview(String email, ReviewRequestDTO request);
+
+    /** Залишити приватний фідбек інтерв'юера по заняттю. */
+    ScheduleItemDTO submitInterviewerFeedback(String email, InterviewerFeedbackRequestDTO request);
 
     /** Відгуки, написані мною. */
     List<ReviewViewDTO> getMyWritten(String email);

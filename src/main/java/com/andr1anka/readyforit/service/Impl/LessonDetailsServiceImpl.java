@@ -50,8 +50,7 @@ public class LessonDetailsServiceImpl implements LessonDetailsService {
 
         int base = interviewer.getPlannedSessionDurationMinutes() == null
                 ? DEFAULT_DURATION : interviewer.getPlannedSessionDurationMinutes();
-        double mult = lt.getDurationMultiplier() == null ? 1.0 : lt.getDurationMultiplier();
-        int effectiveDuration = (int) Math.round(base * mult);
+        int effectiveDuration = base;
 
         // слоти інтерв'юера (майбутні), фіолетові вільні / сірі зайняті
         List<TimeSlotDTO> slots = timeSlotsRepository
@@ -87,7 +86,7 @@ public class LessonDetailsServiceImpl implements LessonDetailsService {
                 .longDescription(lt.getLongDescription())
                 .tags(splitTags(lt.getSpecializations()))
                 .price(lt.getPrice())
-                .durationMultiplier(mult)
+                .durationMultiplier(1.0)
                 .effectiveDurationMinutes(effectiveDuration)
                 .slots(slots)
                 .build();
@@ -148,8 +147,6 @@ public class LessonDetailsServiceImpl implements LessonDetailsService {
                 .endTime(ts.getEndTime())
                 .available(ts.isAvailable() && ts.getLesson() == null)
                 .booked(ts.getLesson() != null)
-                // Для анкети показуємо висоту/тривалість слота під конкретний вид заняття.
-                // Сам збережений слот у базі лишається базовим.
                 .durationMinutes(duration)
                 .build();
     }

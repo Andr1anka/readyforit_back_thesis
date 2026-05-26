@@ -25,6 +25,13 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.submitReview(principal.getUsername(), request));
     }
 
+    @PostMapping("/interviewer-feedback")
+    public ResponseEntity<ScheduleItemDTO> submitInterviewerFeedback(
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody InterviewerFeedbackRequestDTO request) {
+        return ResponseEntity.ok(reviewService.submitInterviewerFeedback(principal.getUsername(), request));
+    }
+
     @GetMapping("/written")
     public ResponseEntity<List<ReviewViewDTO>> myWritten(@AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(reviewService.getMyWritten(principal.getUsername()));

@@ -80,7 +80,6 @@ public class InterviewerProfileServiceImpl implements InterviewerProfileService 
                 .longDescription(dto.getLongDescription())
                 .specializations(joinTags(dto.getTags()))
                 .price(dto.getPrice())
-                .durationMultiplier(dto.getDurationMultiplier())
                 .interviewer(interviewer)
                 .build();
         lessonTypeRepository.save(lt);
@@ -101,7 +100,6 @@ public class InterviewerProfileServiceImpl implements InterviewerProfileService 
         lt.setLongDescription(dto.getLongDescription());
         lt.setSpecializations(joinTags(dto.getTags()));
         lt.setPrice(dto.getPrice());
-        lt.setDurationMultiplier(dto.getDurationMultiplier());
         lessonTypeRepository.save(lt);
         return toLessonTypeDto(lt, interviewer);
     }
@@ -138,9 +136,8 @@ public class InterviewerProfileServiceImpl implements InterviewerProfileService 
         int breakMinutes = interviewer.getExpectedTimeForBreak() == null
                 ? DEFAULT_BREAK : interviewer.getExpectedTimeForBreak();
 
-        // Слоти завжди нарізаються тільки за базовою тривалістю інтерв'юера.
-        // Множник конкретного виду заняття застосовується лише під час відображення
-        // в анкеті/деталях заняття, а не під час генерації доступних слотів.
+        // Слоти нарізаються за базовою тривалістю інтерв'юера.
+        // Ця сама тривалість застосовується до всіх видів занять цього інтерв'юера.
         int slotDuration = baseDuration;
         if (slotDuration < 5) slotDuration = 5;
 
@@ -283,7 +280,6 @@ public class InterviewerProfileServiceImpl implements InterviewerProfileService 
     private LessonTypeResponseDTO toLessonTypeDto(InformationAboutLesson lt, Interviewer interviewer) {
         int base = interviewer.getPlannedSessionDurationMinutes() == null
                 ? DEFAULT_DURATION : interviewer.getPlannedSessionDurationMinutes();
-        double mult = lt.getDurationMultiplier() == null ? 1.0 : lt.getDurationMultiplier();
         return LessonTypeResponseDTO.builder()
                 .id(lt.getId())
                 .title(lt.getTitle())
@@ -291,8 +287,8 @@ public class InterviewerProfileServiceImpl implements InterviewerProfileService 
                 .longDescription(lt.getLongDescription())
                 .tags(splitTags(lt.getSpecializations()))
                 .price(lt.getPrice())
-                .durationMultiplier(mult)
-                .effectiveDurationMinutes((int) Math.round(base * mult))
+                .durationMultiplier(1.0)
+                .effectiveDurationMinutes(base)
                 .build();
     }
 

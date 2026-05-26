@@ -28,9 +28,6 @@ public class InterviewerCardMapper {
        int baseDuration = interviewer == null || interviewer.getPlannedSessionDurationMinutes() == null
                ? 60
                : interviewer.getPlannedSessionDurationMinutes();
-       double multiplier = informationAboutLesson.getDurationMultiplier() == null
-               ? 1.0
-               : informationAboutLesson.getDurationMultiplier();
        String avatarUrl = user != null && user.getPicture() != null && !user.getPicture().isBlank()
                ? "/api/user/me/avatar?u=" + user.getId()
                : null;
@@ -47,7 +44,6 @@ public class InterviewerCardMapper {
                .title(informationAboutLesson.getTitle())
                .shortDescription(informationAboutLesson.getShortDescription())
                .price(informationAboutLesson.getPrice())
-               .effectiveDurationMinutes((int) Math.round(baseDuration * multiplier))
                .format("Онлайн")
                .build();
     }

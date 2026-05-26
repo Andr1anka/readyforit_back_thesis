@@ -42,9 +42,12 @@ public class ScheduleItemDTO {
     private LessonStatus status;
     private String link;            // кімната для відеозвʼязку
 
-    // для архівних — рецензія від інтерв'юера + чи поточний користувач уже залишив відгук
+    // Фідбек інтерв'юера по заняттю: приватна рецензія для студента, НЕ публічний відгук.
     private String reviewFromInterviewer;
+    private boolean canLeaveInterviewerFeedback;
+
+    // Публічний відгук/оцінка про іншу сторону уроку. Його може залишити і студент, і інтерв'юер.
     private Integer myRating;       // оцінка, яку поточний користувач поставив (якщо є)
     private String myReviewComment;
-    private boolean canReview;      // чи можна залишити відгук (урок завершено й ще не залишено)
+    private boolean canReview;      // чи можна залишити публічний відгук
 }

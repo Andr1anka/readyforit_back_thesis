@@ -7,8 +7,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class AdminUserDTO {
@@ -21,4 +23,15 @@ public class AdminUserDTO {
     private boolean verificated;
     private VerificationStatus verificationStatus;
     private Double rank;
+
+    // Дані останньої ручної KYC-верифікації для вкладки адміністратора
+    private Long verificationRequestId;
+    private String profilePhotoUrl;
+    private String documentUrl;
+    private String selfieUrl;
+    private Boolean nameMatch;
+    private Double faceSimilarity;
+    private Boolean faceMatch;
+    private String extractedTextPreview;
+    private LocalDateTime verificationCreatedAt;
 }
