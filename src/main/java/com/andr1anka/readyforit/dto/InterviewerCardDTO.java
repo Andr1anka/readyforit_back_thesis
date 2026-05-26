@@ -12,7 +12,8 @@ import java.util.List;
 @Getter
 @Setter
 public class InterviewerCardDTO {
-    private Long id;
+    private Long id;                  // id виду заняття (InformationAboutLesson)
+    private Long interviewerId;       // id інтерв'юера (для переходу в деталі/розклад)
 
     private String name;
     private String lastName;
@@ -26,6 +27,8 @@ public class InterviewerCardDTO {
     private String title ;
     private String shortDescription;
     private int price;
+    private Integer effectiveDurationMinutes;
 
-
+    private Integer experienceYears;  // років досвіду (з заявки інтерв'юера)
+    private String format;            // "Онлайн" — наразі всі заняття онлайн
 }

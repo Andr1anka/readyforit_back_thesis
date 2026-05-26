@@ -48,18 +48,34 @@ public class MinioFileStorageService implements FileStorageService {
     public String uploadAvatar(MultipartFile file, Long userId) {
         validate(file, ALLOWED_IMAGE_MIME, MAX_AVATAR_SIZE);
         String key = "user-" + userId + "/avatar-" + UUID.randomUUID() + extOf(file);
+
+        // Читаємо у пам'ять, щоб передати точний розмір і коректний partSize.
+        // Раніше тут йшов file.getInputStream() з partSize=-1 і known size,
+        // що в деяких версіях MinIO SDK кидало помилку → 500 при будь-якому збої.
+        byte[] bytes;
         try {
+            bytes = file.getBytes();
+        } catch (Exception e) {
+            throw new BadRequestException("Не вдалося прочитати файл зображення");
+        }
+
+        try (InputStream in = new ByteArrayInputStream(bytes)) {
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(avatarsBucket)
                             .object(key)
-                            .stream(file.getInputStream(), file.getSize(), -1)
+                            .stream(in, bytes.length, -1)
                             .contentType(file.getContentType())
                             .build()
             );
             return key;
         } catch (Exception e) {
-            throw new IllegalStateException("Avatar upload failed", e);
+            // Найчастіша причина 500 — MinIO недоступний (не запущено на :9000).
+            // Перетворюємо технічну помилку на зрозуміле повідомлення для фронта.
+            log.error("Avatar upload to MinIO failed (bucket={}, key={}): {}",
+                    avatarsBucket, key, e.getMessage(), e);
+            throw new BadRequestException(
+                    "Сервіс зберігання зображень недоступний. Перевірте, що MinIO запущено.");
         }
     }
 

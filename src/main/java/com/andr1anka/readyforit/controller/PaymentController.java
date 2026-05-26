@@ -47,4 +47,28 @@ public class PaymentController {
     ) {
         return ResponseEntity.ok(paymentService.getMyHistory(principal.getUsername()));
     }
+
+    /**
+     * Підтвердження поповнення після повернення з LiqPay.
+     * Потрібно для тестового режиму / localhost, де server_url callback
+     * не доходить. Статус звіряється напряму через LiqPay status API.
+     */
+    @PostMapping("/topup/confirm")
+    public ResponseEntity<PaymentHistoryItemDTO> confirmTopup(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam("orderId") String orderId
+    ) {
+        return ResponseEntity.ok(paymentService.confirmTopup(principal.getUsername(), orderId));
+    }
+
+    /**
+     * Перевіряє всі незавершені транзакції користувача через LiqPay status API.
+     * Використовується коли orderId з sessionStorage втрачено (redirect/POST-back).
+     */
+    @PostMapping("/topup/confirm-pending")
+    public ResponseEntity<List<PaymentHistoryItemDTO>> confirmPendingTopups(
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        return ResponseEntity.ok(paymentService.confirmPendingTopups(principal.getUsername()));
+    }
 }

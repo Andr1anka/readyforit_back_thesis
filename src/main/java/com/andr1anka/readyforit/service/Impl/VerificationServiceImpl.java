@@ -49,12 +49,23 @@ public class VerificationServiceImpl implements VerificationService {
             throw new BadRequestException("Ви вже верифіковані");
         }
 
+        if (user.getPicture() == null || user.getPicture().isBlank()) {
+            throw new BadRequestException("Спочатку завантажте фото профілю");
+        }
+
         // 1. Зберігаємо файли в MinIO (шифровані)
         String docKey = fileStorageService.uploadKycDocument(documentFront, user.getId(), "doc");
         String selfieKey = fileStorageService.uploadKycDocument(liveSelfie, user.getId(), "selfie");
 
+        byte[] profileImageBytes = fileStorageService.getRawBytes(
+                fileStorageService.getAvatarsBucket(), user.getPicture());
+
         // 2. Викликаємо Python KYC сервіс
-        String fullName = (user.getFirstName() + " " + user.getLastName()).trim();
+        String fullName = ((user.getFirstName() == null ? "" : user.getFirstName())
+                + " " + (user.getLastName() == null ? "" : user.getLastName())).trim();
+        if (fullName.isBlank()) {
+            throw new BadRequestException("Заповніть ім'я та прізвище у профілі перед верифікацією");
+        }
         Map<String, Object> kycResponse;
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -62,6 +73,7 @@ public class VerificationServiceImpl implements VerificationService {
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("document_front", toResource(documentFront));
+            body.add("profile_image", toResource(profileImageBytes, "profile-avatar.jpg"));
             body.add("live_selfie", toResource(liveSelfie));
             body.add("user_full_name", fullName);
 
@@ -173,14 +185,18 @@ public class VerificationServiceImpl implements VerificationService {
 
     private ByteArrayResource toResource(MultipartFile file) {
         try {
-            return new ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
-            };
+            return toResource(file.getBytes(), file.getOriginalFilename());
         } catch (Exception e) {
             throw new IllegalStateException("Не вдалося прочитати файл", e);
         }
+    }
+
+    private ByteArrayResource toResource(byte[] bytes, String filename) {
+        return new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                return filename;
+            }
+        };
     }
 }

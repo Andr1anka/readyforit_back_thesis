@@ -1,13 +1,13 @@
 package com.andr1anka.readyforit.controller;
 
 import com.andr1anka.readyforit.dto.InterviewerCardDTO;
+import com.andr1anka.readyforit.dto.InterviewerFilterDTO;
+import com.andr1anka.readyforit.dto.PagedResponseDTO;
 import com.andr1anka.readyforit.service.InterviewerCardService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -19,13 +19,25 @@ public class InterviewersCardController {
     public InterviewersCardController(InterviewerCardService interviewerCardService) {
         this.interviewerCardService = interviewerCardService;
     }
+
+    /** Сумісність: повертає всі картки без фільтрів. */
     @GetMapping
     public ResponseEntity<List<InterviewerCardDTO>> getAllCards(){
-       log.info("Getting all cards with lessons");
-
-       return ResponseEntity.status(HttpStatus.OK).body(
-               interviewerCardService.getAllCards());
+        log.info("Getting all cards with lessons");
+        return ResponseEntity.status(HttpStatus.OK).body(
+                interviewerCardService.getAllCards());
     }
 
+    /** Список з фільтрацією/сортуванням/пагінацією. */
+    @PostMapping("/search")
+    public ResponseEntity<PagedResponseDTO<InterviewerCardDTO>> search(
+            @RequestBody(required = false) InterviewerFilterDTO filter) {
+        return ResponseEntity.ok(interviewerCardService.getCards(filter));
+    }
 
+    /** Усі доступні мітки для фільтра. */
+    @GetMapping("/tags")
+    public ResponseEntity<List<String>> getTags() {
+        return ResponseEntity.ok(interviewerCardService.getAllTags());
+    }
 }

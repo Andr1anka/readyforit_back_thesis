@@ -19,6 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -33,6 +37,7 @@ import java.util.UUID;
 public class PaymentServiceImpl implements PaymentService {
 
     private static final String LIQPAY_CHECKOUT_URL = "https://www.liqpay.ua/api/3/checkout";
+    private static final String LIQPAY_API_REQUEST_URL = "https://www.liqpay.ua/api/request";
 
     private final UserRepository userRepository;
     private final PaymentTransactionRepository txRepo;
@@ -63,13 +68,13 @@ public class PaymentServiceImpl implements PaymentService {
 
         String orderId = "rfi-" + UUID.randomUUID();
 
-        // Запис у БД ДО запиту, щоб callback мав з чим звіритись
+        // Запис у БД ДО запиту. Завжди CREATED — SANDBOX стане результатом після оплати.
         PaymentTransaction tx = PaymentTransaction.builder()
                 .user(user)
                 .orderId(orderId)
                 .amount(dto.getAmount())
                 .currency(dto.getCurrency() == null ? "UAH" : dto.getCurrency())
-                .status(sandbox == 1 ? PaymentStatus.SANDBOX : PaymentStatus.CREATED)
+                .status(PaymentStatus.CREATED)
                 .description("Поповнення балансу ReadyForIt")
                 .build();
         txRepo.save(tx);
@@ -170,22 +175,183 @@ public class PaymentServiceImpl implements PaymentService {
         tx.setLiqpayPaymentId(paymentId);
         tx.setCardLast4(cardLast4);
         tx.setCardType(cardType);
-        tx.setCompletedAt(LocalDateTime.now());
 
         if (success) {
-            tx.setStatus("sandbox".equalsIgnoreCase(status) ? PaymentStatus.SANDBOX : PaymentStatus.SUCCESS);
-
-            User user = tx.getUser();
-            BigDecimal current = user.getBalance() == null ? BigDecimal.ZERO : user.getBalance();
-            user.setBalance(current.add(tx.getAmount()));
-            userRepository.save(user);
+            // applySuccessfulPayment сам виставить completedAt і збереже
+            applySuccessfulPayment(tx, "sandbox".equalsIgnoreCase(status));
         } else if ("reversed".equalsIgnoreCase(status)) {
             tx.setStatus(PaymentStatus.REVERSED);
+            tx.setCompletedAt(LocalDateTime.now());
+            txRepo.save(tx);
         } else {
             tx.setStatus(PaymentStatus.FAILURE);
+            tx.setCompletedAt(LocalDateTime.now());
+            txRepo.save(tx);
+        }
+    }
+
+    /**
+     * Безпечно зараховує успішний платіж на баланс і зберігає транзакцію.
+     * Викликається і з callback'а, і з confirmTopup. Сама транзакція вже має
+     * бути перевірена (сума/валюта/підпис) до виклику.
+     */
+    private void applySuccessfulPayment(PaymentTransaction tx, boolean isSandbox) {
+        // подвійний захист від повторного зарахування:
+        // якщо платіж вже фінально успішний (SUCCESS, або SANDBOX із completedAt) — виходимо
+        boolean alreadyCredited = tx.getStatus() == PaymentStatus.SUCCESS
+                || (tx.getStatus() == PaymentStatus.SANDBOX && tx.getCompletedAt() != null);
+        if (alreadyCredited) {
+            return;
+        }
+        tx.setStatus(isSandbox ? PaymentStatus.SANDBOX : PaymentStatus.SUCCESS);
+        tx.setCompletedAt(LocalDateTime.now());
+
+        User user = tx.getUser();
+        BigDecimal current = user.getBalance() == null ? BigDecimal.ZERO : user.getBalance();
+        user.setBalance(current.add(tx.getAmount()));
+        userRepository.save(user);
+        txRepo.save(tx);
+    }
+
+    @Override
+    @Transactional
+    @SuppressWarnings("unchecked")
+    public PaymentHistoryItemDTO confirmTopup(String email, String orderId) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BadRequestException("Користувача не знайдено"));
+
+        PaymentTransaction tx = txRepo.findByOrderId(orderId)
+                .orElseThrow(() -> new BadRequestException("Транзакцію не знайдено"));
+
+        // транзакція має належати тому, хто запитує
+        if (!tx.getUser().getId().equals(user.getId())) {
+            throw new BadRequestException("Транзакція не належить користувачу");
         }
 
-        txRepo.save(tx);
+        // вже фінально завершена — повертаємо як є (idempotency)
+        if (tx.getCompletedAt() != null) {
+            return toHistoryDto(tx);
+        }
+
+        return checkAndApplyLiqPayStatus(tx);
+    }
+
+    @Override
+    @Transactional
+    public List<PaymentHistoryItemDTO> confirmPendingTopups(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BadRequestException("Користувача не знайдено"));
+
+        // Шукаємо всі незавершені транзакції (completedAt == null, статус CREATED)
+        List<PaymentTransaction> pending = txRepo.findAllByUserAndStatusAndCompletedAtIsNull(
+                user, PaymentStatus.CREATED);
+
+        List<PaymentHistoryItemDTO> results = new java.util.ArrayList<>();
+        for (PaymentTransaction tx : pending) {
+            try {
+                results.add(checkAndApplyLiqPayStatus(tx));
+            } catch (Exception e) {
+                log.warn("Не вдалося перевірити статус транзакції {}: {}", tx.getOrderId(), e.getMessage());
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Запитує LiqPay status API для конкретної транзакції та зараховує баланс якщо оплачено.
+     */
+    @SuppressWarnings("unchecked")
+    private PaymentHistoryItemDTO checkAndApplyLiqPayStatus(PaymentTransaction tx) {
+        Map<String, Object> statusPayload;
+        try {
+            statusPayload = queryLiqPayStatus(tx.getOrderId());
+        } catch (Exception e) {
+            log.warn("LiqPay status API недоступний для {}: {}", tx.getOrderId(), e.getMessage());
+            return toHistoryDto(tx);
+        }
+
+        String status = String.valueOf(statusPayload.getOrDefault("status", "")).toLowerCase();
+
+        boolean paid = status.equals("success")
+                || status.equals("sandbox")
+                || status.equals("wait_compensation");
+
+        // зберігаємо метадані картки якщо є
+        Object mask = statusPayload.get("sender_card_mask2");
+        if (mask != null) tx.setCardLast4(extractLast4(mask.toString()));
+        Object cardType = statusPayload.get("sender_card_type");
+        if (cardType != null) tx.setCardType(cardType.toString());
+        Object payId = statusPayload.get("payment_id");
+        if (payId != null) tx.setLiqpayPaymentId(String.valueOf(payId));
+
+        if (paid) {
+            applySuccessfulPayment(tx, status.equals("sandbox") || sandbox == 1);
+        } else if (status.equals("reversed")) {
+            tx.setStatus(PaymentStatus.REVERSED);
+            tx.setCompletedAt(LocalDateTime.now());
+            txRepo.save(tx);
+        } else if (status.equals("failure") || status.equals("error")) {
+            tx.setStatus(PaymentStatus.FAILURE);
+            tx.setCompletedAt(LocalDateTime.now());
+            txRepo.save(tx);
+        } else {
+            // статус ще не фінальний (processing/wait_accept тощо) — не чіпаємо
+            txRepo.save(tx);
+        }
+
+        return toHistoryDto(tx);
+    }
+
+    /**
+     * Викликає LiqPay status API і повертає розпарсений payload.
+     * Працює і для sandbox-ключів. Використовується для confirmTopup.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> queryLiqPayStatus(String orderId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("public_key", publicKey);
+        params.put("version", "3");
+        params.put("action", "status");
+        params.put("order_id", orderId);
+
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(params);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to serialize LiqPay status payload", e);
+        }
+        String data = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+        String signature = signatureService.sign(data);
+
+        String body = "data=" + java.net.URLEncoder.encode(data, StandardCharsets.UTF_8)
+                + "&signature=" + java.net.URLEncoder.encode(signature, StandardCharsets.UTF_8);
+
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(LIQPAY_API_REQUEST_URL))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+            HttpResponse<String> resp = client.send(request, HttpResponse.BodyHandlers.ofString());
+            return objectMapper.readValue(resp.body(), Map.class);
+        } catch (Exception e) {
+            log.error("LiqPay status request failed for {}: {}", orderId, e.getMessage(), e);
+            throw new BadRequestException("Не вдалося перевірити статус платежу в LiqPay");
+        }
+    }
+
+    private PaymentHistoryItemDTO toHistoryDto(PaymentTransaction t) {
+        return PaymentHistoryItemDTO.builder()
+                .orderId(t.getOrderId())
+                .amount(t.getAmount())
+                .currency(t.getCurrency())
+                .status(t.getStatus())
+                .cardLast4(t.getCardLast4())
+                .cardType(t.getCardType())
+                .createdAt(t.getCreatedAt())
+                .completedAt(t.getCompletedAt())
+                .build();
     }
 
     @Override
@@ -195,16 +361,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new BadRequestException("Користувача не знайдено"));
 
         return txRepo.findAllByUserOrderByCreatedAtDesc(user).stream()
-                .map(t -> PaymentHistoryItemDTO.builder()
-                        .orderId(t.getOrderId())
-                        .amount(t.getAmount())
-                        .currency(t.getCurrency())
-                        .status(t.getStatus())
-                        .cardLast4(t.getCardLast4())
-                        .cardType(t.getCardType())
-                        .createdAt(t.getCreatedAt())
-                        .completedAt(t.getCompletedAt())
-                        .build())
+                .map(this::toHistoryDto)
                 .toList();
     }
 

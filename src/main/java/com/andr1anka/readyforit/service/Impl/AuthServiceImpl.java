@@ -115,8 +115,13 @@ public class AuthServiceImpl implements AuthService {
         if (user.isBlocked()) throw new BadRequestException("Акаунт заблоковано адміністратором");
 
         String jwt = jwtService.generateToken(user.getEmail());
-        return new AuthResponseDTO(jwt, "Успішний вхід",user.getFirstName(), user.getLastName());
-    }
+        return new AuthResponseDTO(
+                jwt,
+                "Успішний вхід",
+                user.getFirstName(),
+                user.getLastName(),
+                user.getRole()
+        ); }
 
     // ==================== СКИДАННЯ ПАРОЛЮ ====================
 

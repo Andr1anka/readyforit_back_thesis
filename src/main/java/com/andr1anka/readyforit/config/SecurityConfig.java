@@ -40,7 +40,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/interviewers").permitAll()
+                        .requestMatchers("/api/interviewers", "/api/interviewers/**").permitAll()
+                        .requestMatchers("/api/lessons/**").permitAll()
                         // ✦ callback від LiqPay — без JWT, але з обов'язковою перевіркою підпису
                         .requestMatchers("/api/payment/liqpay/callback").permitAll()
                         .anyRequest().authenticated()

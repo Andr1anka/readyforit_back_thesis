@@ -26,6 +26,29 @@ public class Lesson {
     @Column(name = "review_from_interviewer", length = 1000)
     private String reviewFromInterviewer;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private LessonStatus status;
+
+    @Column(name = "price")
+    private Integer price;
+
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
+
+    @Column(name = "reminder_day_sent")
+    private boolean reminderDaySent;
+
+    @Column(name = "reminder_15min_sent")
+    private boolean reminder15MinSent;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lesson_type_id")
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private InformationAboutLesson lessonType;
+
+
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
     @OneToOne(cascade = CascadeType.ALL)

@@ -35,6 +35,28 @@ public class Complaint {
     @Column(name = "created_at",nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private ComplaintStatus status;
+
+    /** Урок, у звʼязку з яким подано скаргу (скаргу можна подати лише за наявності уроку). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lesson_id")
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private Lesson lesson;
+
+    /** На кого скарга (інша сторона уроку). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "accused_user_id")
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private User accusedUser;
+
+    /** Коментар адміністратора при вирішенні. */
+    @Column(name = "admin_comment", length = 1000)
+    private String adminComment;
+
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
     @OneToMany(mappedBy = "complaint",
