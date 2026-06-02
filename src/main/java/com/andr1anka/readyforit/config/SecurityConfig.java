@@ -1,7 +1,7 @@
 package com.andr1anka.readyforit.config;
 
 import com.andr1anka.readyforit.security.JwtAuthenticationFilter;
-import com.andr1anka.readyforit.security.UserDetailsServiceImpl;
+import com.andr1anka.readyforit.service.Impl.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

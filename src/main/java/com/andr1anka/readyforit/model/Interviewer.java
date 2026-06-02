@@ -51,14 +51,6 @@ public class Interviewer {
             fetch = FetchType.LAZY,
             cascade = CascadeType.ALL,
             orphanRemoval = true)
-    private List<Availability> availabilityList = new ArrayList<>();
-
-    @EqualsAndHashCode.Exclude
-    @ToString.Exclude
-    @OneToMany(mappedBy ="interviewer",
-            fetch = FetchType.LAZY,
-            cascade = CascadeType.ALL,
-            orphanRemoval = true)
     private List<InformationAboutLesson> informationAboutLessons = new ArrayList<>();
 
     @EqualsAndHashCode.Exclude

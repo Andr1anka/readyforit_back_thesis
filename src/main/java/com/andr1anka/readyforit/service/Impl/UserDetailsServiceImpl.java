@@ -1,4 +1,4 @@
-package com.andr1anka.readyforit.security;
+package com.andr1anka.readyforit.service.Impl;
 
 import com.andr1anka.readyforit.model.User;
 import com.andr1anka.readyforit.repository.UserRepository;
