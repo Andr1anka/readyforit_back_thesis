@@ -20,7 +20,7 @@ public class InterviewersCardController {
         this.interviewerCardService = interviewerCardService;
     }
 
-    /** Сумісність: повертає всі картки без фільтрів. */
+    //-- Сумісність: повертає всі картки без фільтрів.
     @GetMapping
     public ResponseEntity<List<InterviewerCardDTO>> getAllCards(){
         log.info("Getting all cards with lessons");
@@ -28,14 +28,14 @@ public class InterviewersCardController {
                 interviewerCardService.getAllCards());
     }
 
-    /** Список з фільтрацією/сортуванням/пагінацією. */
+    //--Список з фільтрацією/сортуванням/пагінацією.
     @PostMapping("/search")
     public ResponseEntity<PagedResponseDTO<InterviewerCardDTO>> search(
             @RequestBody(required = false) InterviewerFilterDTO filter) {
         return ResponseEntity.ok(interviewerCardService.getCards(filter));
     }
 
-    /** Усі доступні мітки для фільтра. */
+    //-- Усі доступні мітки для фільтра.
     @GetMapping("/tags")
     public ResponseEntity<List<String>> getTags() {
         return ResponseEntity.ok(interviewerCardService.getAllTags());

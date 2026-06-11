@@ -7,10 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
-/**
- * Параметри фільтрації/сортування/пагінації для списку інтерв'юерів.
- * Усі поля опційні.
- */
+
 @Data
 @Builder
 @NoArgsConstructor

@@ -15,13 +15,13 @@ public class LessonDetailsController {
 
     private final LessonDetailsService lessonDetailsService;
 
-    /** Повна інформація про вид заняття + слоти. */
+    //--Повна інформація про вид заняття + слоти.
     @GetMapping("/{lessonTypeId}")
     public ResponseEntity<LessonDetailsDTO> getDetails(@PathVariable Long lessonTypeId) {
         return ResponseEntity.ok(lessonDetailsService.getLessonDetails(lessonTypeId));
     }
 
-    /** Відгуки про інтерв'юера (пагінація + сортування). */
+    //--Відгуки про інтерв'юера (пагінація + сортування).
     @GetMapping("/interviewer/{interviewerId}/reviews")
     public ResponseEntity<PagedResponseDTO<ReviewItemDTO>> getReviews(
             @PathVariable Long interviewerId,

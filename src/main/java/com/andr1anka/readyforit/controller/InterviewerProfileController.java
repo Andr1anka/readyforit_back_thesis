@@ -11,10 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * Самообслуговування інтерв'юера: налаштування, види занять, слоти.
- * Усі ендпоінти вимагають автентифікації (роль INTERVIEWER перевіряється у сервісі).
- */
 @RestController
 @RequestMapping("/api/interviewer/profile")
 @RequiredArgsConstructor

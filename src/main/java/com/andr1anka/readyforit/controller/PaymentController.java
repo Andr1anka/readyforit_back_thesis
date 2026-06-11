@@ -28,10 +28,7 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.initTopup(principal.getUsername(), dto));
     }
 
-    /**
-     * Callback від LiqPay. Без авторизації (LiqPay не має нашого JWT),
-     * але із суворою перевіркою підпису. Має бути додано в SecurityConfig як permitAll.
-     */
+
     @PostMapping("/liqpay/callback")
     public ResponseEntity<Void> liqpayCallback(
             @RequestParam("data") String data,
@@ -48,11 +45,7 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.getMyHistory(principal.getUsername()));
     }
 
-    /**
-     * Підтвердження поповнення після повернення з LiqPay.
-     * Потрібно для тестового режиму / localhost, де server_url callback
-     * не доходить. Статус звіряється напряму через LiqPay status API.
-     */
+
     @PostMapping("/topup/confirm")
     public ResponseEntity<PaymentHistoryItemDTO> confirmTopup(
             @AuthenticationPrincipal UserDetails principal,
@@ -61,10 +54,7 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.confirmTopup(principal.getUsername(), orderId));
     }
 
-    /**
-     * Перевіряє всі незавершені транзакції користувача через LiqPay status API.
-     * Використовується коли orderId з sessionStorage втрачено (redirect/POST-back).
-     */
+
     @PostMapping("/topup/confirm-pending")
     public ResponseEntity<List<PaymentHistoryItemDTO>> confirmPendingTopups(
             @AuthenticationPrincipal UserDetails principal
