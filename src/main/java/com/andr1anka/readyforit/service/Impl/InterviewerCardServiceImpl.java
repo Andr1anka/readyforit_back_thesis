@@ -10,6 +10,8 @@ import com.andr1anka.readyforit.service.InterviewerCardService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.andr1anka.readyforit.repository.TimeSlotsRepository;
+import java.time.LocalDate;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,15 +23,18 @@ public class InterviewerCardServiceImpl implements InterviewerCardService {
 
     private final InformationAboutLessonRepository lessonRepository;
     private final InterviewerCardMapper mapper;
+    private final TimeSlotsRepository timeSlotsRepository;
     private final InterviewerRequestRepository requestRepository;
 
     @Autowired
     public InterviewerCardServiceImpl(InformationAboutLessonRepository lessonRepository,
                                       InterviewerCardMapper mapper,
-                                      InterviewerRequestRepository requestRepository) {
+                                      InterviewerRequestRepository requestRepository,
+                                      TimeSlotsRepository timeSlotsRepository) {
         this.lessonRepository = lessonRepository;
         this.mapper = mapper;
         this.requestRepository = requestRepository;
+        this.timeSlotsRepository = timeSlotsRepository;
     }
 
     @Override
@@ -41,19 +46,41 @@ public class InterviewerCardServiceImpl implements InterviewerCardService {
         return lessonRepository.findAll().stream()
                 .map(lesson -> {
                     InterviewerCardDTO dto = mapper.toDTO(lesson);
+
+                    if (dto != null && dto.getInterviewerId() != null) {
+                        LocalDate today = LocalDate.now();
+                        LocalDate weekEnd = today.plusDays(7);
+
+                        boolean hasSlots = timeSlotsRepository
+                                .existsByInterviewerIdAndDateBetweenAndIsAvailableTrueAndLessonIsNull(
+                                        dto.getInterviewerId(),
+                                        today,
+                                        weekEnd
+                                );
+
+                        dto.setHasAvailableSlotsThisWeek(hasSlots);
+                    }
+
                     if (dto == null) return null;
+
                     Long userId = (lesson.getInterviewer() == null || lesson.getInterviewer().getUser() == null)
                             ? null : lesson.getInterviewer().getUser().getId();
+
                     if (userId != null) {
                         Integer years = experienceByUser.computeIfAbsent(userId, uid ->
-                                requestRepository.findTopByUserOrderByCreatedAtDesc(lesson.getInterviewer().getUser())
+                                requestRepository.findTopByUserOrderByCreatedAtDesc(
+                                                lesson.getInterviewer().getUser()
+                                        )
                                         .map(r -> r.getYearsOfExperience())
                                         .orElse(null));
+
                         dto.setExperienceYears(years);
                     }
+
                     return dto;
                 })
                 .filter(Objects::nonNull)
+                .filter(InterviewerCardDTO::isHasAvailableSlotsThisWeek)
                 .collect(Collectors.toList());
     }
 
@@ -85,7 +112,7 @@ public class InterviewerCardServiceImpl implements InterviewerCardService {
             case "rank_desc" -> Comparator.comparing(
                     c -> c.getRank() == null ? -1.0 : c.getRank(),
                     Comparator.reverseOrder());
-            default -> Comparator.comparing(InterviewerCardDTO::getId); // стабільний порядок
+            default -> Comparator.comparing(InterviewerCardDTO::getId).reversed(); // стабільний порядок
         };
         filtered.sort(comparator);
 

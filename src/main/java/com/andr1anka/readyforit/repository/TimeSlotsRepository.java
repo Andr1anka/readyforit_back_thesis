@@ -13,4 +13,10 @@ public interface TimeSlotsRepository extends JpaRepository<TimeSlots,Long> {
     List<TimeSlots> findAllByInterviewerOrderByDateAscStartTimeAsc(Interviewer interviewer);
     List<TimeSlots> findAllByInterviewerIdOrderByDateAscStartTimeAsc(Long interviewerId);
     List<TimeSlots> findAllByInterviewerAndDate(Interviewer interviewer, LocalDate date);
+    boolean existsByInterviewerIdAndDateBetweenAndIsAvailableTrueAndLessonIsNull(
+            Long interviewerId,
+            LocalDate from,
+            LocalDate to
+    );
 }
+

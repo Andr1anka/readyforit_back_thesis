@@ -10,6 +10,10 @@ import java.util.List;
  */
 public interface InterviewerProfileService {
 
+    List<SocialMediaDTO> getMySocialMedia(String email);
+
+    List<SocialMediaDTO> updateMySocialMedia(String email, List<SocialMediaDTO> dto);
+
     /** Поточні налаштування інтерв'юера (тривалість + перерва). Створює Interviewer за потреби. */
     InterviewerSettingsDTO getMySettings(String email);
 

@@ -31,4 +31,7 @@ public class InterviewerCardDTO {
 
     private Integer experienceYears;  // років досвіду (з заявки інтерв'юера)
     private String format;            // "Онлайн" — наразі всі заняття онлайн
+    private boolean hasAvailableSlotsThisWeek;
 }
+
+

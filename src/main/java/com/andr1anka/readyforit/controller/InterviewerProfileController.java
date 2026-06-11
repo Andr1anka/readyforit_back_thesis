@@ -22,6 +22,19 @@ public class InterviewerProfileController {
 
     private final InterviewerProfileService service;
 
+    @GetMapping("/social-media")
+    public ResponseEntity<List<SocialMediaDTO>> getSocialMedia(
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(service.getMySocialMedia(principal.getUsername()));
+    }
+
+    @PutMapping("/social-media")
+    public ResponseEntity<List<SocialMediaDTO>> updateSocialMedia(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestBody List<SocialMediaDTO> dto) {
+        return ResponseEntity.ok(service.updateMySocialMedia(principal.getUsername(), dto));
+    }
+
     // ---- Налаштування ----
     @GetMapping("/settings")
     public ResponseEntity<InterviewerSettingsDTO> getSettings(

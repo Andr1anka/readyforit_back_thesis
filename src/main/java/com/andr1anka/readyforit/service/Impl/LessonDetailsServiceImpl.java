@@ -1,9 +1,6 @@
 package com.andr1anka.readyforit.service.Impl;
 
-import com.andr1anka.readyforit.dto.LessonDetailsDTO;
-import com.andr1anka.readyforit.dto.PagedResponseDTO;
-import com.andr1anka.readyforit.dto.ReviewItemDTO;
-import com.andr1anka.readyforit.dto.TimeSlotDTO;
+import com.andr1anka.readyforit.dto.*;
 import com.andr1anka.readyforit.exception.BadRequestException;
 import com.andr1anka.readyforit.model.*;
 import com.andr1anka.readyforit.repository.InformationAboutLessonRepository;
@@ -89,6 +86,16 @@ public class LessonDetailsServiceImpl implements LessonDetailsService {
                 .durationMultiplier(1.0)
                 .effectiveDurationMinutes(effectiveDuration)
                 .slots(slots)
+                .socialMedia(
+                        interviewer.getSocialMediaList()
+                                .stream()
+                                .map(sm -> SocialMediaDTO.builder()
+                                        .id(sm.getId())
+                                        .title(sm.getTitle())
+                                        .link(sm.getLink())
+                                        .build())
+                                .collect(Collectors.toList())
+                )
                 .build();
     }
 

@@ -38,4 +38,5 @@ public class LessonDetailsDTO {
 
     // слоти інтерв'юера (фіолетові вільні / сірі зайняті)
     private List<TimeSlotDTO> slots;
+    private List<SocialMediaDTO> socialMedia;
 }

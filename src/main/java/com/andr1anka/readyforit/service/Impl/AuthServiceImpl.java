@@ -144,7 +144,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void sendResetPasswordEmail(String email, String token) {
-        String resetUrl = "http://localhost:8080/api/auth/reset-password?token=" + token;
+        String resetUrl = "http://localhost:5173/?resetToken=" + token;
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(email);

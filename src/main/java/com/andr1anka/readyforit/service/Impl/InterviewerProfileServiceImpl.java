@@ -3,10 +3,7 @@ package com.andr1anka.readyforit.service.Impl;
 import com.andr1anka.readyforit.dto.*;
 import com.andr1anka.readyforit.exception.BadRequestException;
 import com.andr1anka.readyforit.model.*;
-import com.andr1anka.readyforit.repository.InformationAboutLessonRepository;
-import com.andr1anka.readyforit.repository.InterviewerRepository;
-import com.andr1anka.readyforit.repository.TimeSlotsRepository;
-import com.andr1anka.readyforit.repository.UserRepository;
+import com.andr1anka.readyforit.repository.*;
 import com.andr1anka.readyforit.service.InterviewerProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +24,7 @@ public class InterviewerProfileServiceImpl implements InterviewerProfileService 
 
     private static final int DEFAULT_DURATION = 60;
     private static final int DEFAULT_BREAK = 10;
-
+    private final SocialMediaRepository socialMediaRepository;
     private final UserRepository userRepository;
     private final InterviewerRepository interviewerRepository;
     private final InformationAboutLessonRepository lessonTypeRepository;
@@ -227,6 +224,60 @@ public class InterviewerProfileServiceImpl implements InterviewerProfileService 
             throw new BadRequestException("Не можна видалити слот, на який вже є запис");
         }
         timeSlotsRepository.delete(slot);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SocialMediaDTO> getMySocialMedia(String email) {
+        Interviewer interviewer = getInterviewerOrThrow(email);
+        return socialMediaRepository.findAllByInterviewerOrderByIdAsc(interviewer)
+                .stream()
+                .map(this::toSocialMediaDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public List<SocialMediaDTO> updateMySocialMedia(String email, List<SocialMediaDTO> dto) {
+        Interviewer interviewer = getInterviewerOrThrow(email);
+
+        interviewer.getSocialMediaList().clear();
+
+        if (dto != null) {
+            dto.stream()
+                    .filter(s -> s.getTitle() != null && !s.getTitle().isBlank())
+                    .filter(s -> s.getLink() != null && !s.getLink().isBlank())
+                    .forEach(s -> {
+                        SocialMedia sm = new SocialMedia();
+                        sm.setTitle(s.getTitle().trim());
+                        sm.setLink(normalizeLink(s.getLink()));
+                        sm.setInterviewer(interviewer);
+                        interviewer.getSocialMediaList().add(sm);
+                    });
+        }
+
+        interviewerRepository.save(interviewer);
+
+        return interviewer.getSocialMediaList()
+                .stream()
+                .map(this::toSocialMediaDto)
+                .collect(Collectors.toList());
+    }
+
+    private SocialMediaDTO toSocialMediaDto(SocialMedia sm) {
+        return SocialMediaDTO.builder()
+                .id(sm.getId())
+                .title(sm.getTitle())
+                .link(sm.getLink())
+                .build();
+    }
+
+    private String normalizeLink(String link) {
+        String value = link.trim();
+        if (!value.startsWith("http://") && !value.startsWith("https://")) {
+            return "https://" + value;
+        }
+        return value;
     }
 
     // ---------------------------------------------------------------------
